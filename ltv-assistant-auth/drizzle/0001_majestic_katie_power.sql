@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `role` enum('SUPER_ADMIN','ADMIN','USER') DEFAULT 'USER' NOT NULL;

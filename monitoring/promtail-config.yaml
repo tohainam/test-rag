@@ -1,0 +1,111 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker container logs
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*-json.log
+
+    pipeline_stages:
+      # Parse Docker JSON logs
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs: attrs
+            tag: attrs.tag
+
+      # Extract container name and compose service
+      - json:
+          expressions:
+            container_name: attrs.name
+            compose_project: attrs."com.docker.compose.project"
+            compose_service: attrs."com.docker.compose.service"
+          source: attrs
+
+      # Add labels
+      - labels:
+          container_name:
+          compose_project:
+          compose_service:
+          stream:
+
+      # Use 'output' field as the log line
+      - output:
+          source: output
+
+      # Parse JSON logs from services
+      - match:
+          selector: '{compose_service=~"ltv-.*"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  service: service
+                  requestId: requestId
+                  traceId: traceId
+                  userId: userId
+                  msg: msg
+
+            - labels:
+                level:
+                service:
+
+      # Drop health check logs to reduce noise
+      - match:
+          selector: '{compose_service=~"ltv-.*"} |~ "health"'
+          action: drop
+
+      # Drop empty log lines
+      - match:
+          selector: '{compose_service=~"ltv-.*"} |= ""'
+          action: drop
+
+  # Local file logs (for npm run start:dev)
+  - job_name: local-services
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: local-services
+          __path__: /logs/*.log
+
+    pipeline_stages:
+      # Parse JSON log lines
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            service: service
+            requestId: requestId
+            traceId: traceId
+            userId: userId
+            userEmail: userEmail
+            message: msg
+            context: context
+
+      # Add labels from parsed fields
+      - labels:
+          level:
+          service:
+
+      # Set timestamp from log
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+
+      # Format output
+      - output:
+          source: message

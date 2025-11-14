@@ -1,0 +1,77 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'docker-compose'
+    environment: 'development'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load alerting rules
+# rule_files:
+#   - "alerts/*.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Loki metrics
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+
+  # Tempo metrics
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+
+  # Application services (when they expose /metrics endpoint)
+  - job_name: 'ltv-services'
+    static_configs:
+      # API Gateway
+      - targets: ['host.docker.internal:50050']
+        labels:
+          service: 'api-gateway'
+
+      # Auth Service
+      - targets: ['host.docker.internal:50051']
+        labels:
+          service: 'auth-service'
+
+      # Datasource Service
+      - targets: ['host.docker.internal:50054']
+        labels:
+          service: 'datasource-service'
+
+      # Indexing Service
+      - targets: ['host.docker.internal:50055']
+        labels:
+          service: 'indexing-service'
+
+      # Retrieval Service
+      - targets: ['host.docker.internal:50056']
+        labels:
+          service: 'retrieval-service'
+
+  # Infrastructure services
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: /metrics
+
+  # MySQL exporter (requires mysql-exporter sidecar)
+  # - job_name: 'mysql'
+  #   static_configs:
+  #     - targets: ['mysql-exporter:9104']

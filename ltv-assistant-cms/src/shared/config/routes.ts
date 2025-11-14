@@ -1,0 +1,16 @@
+export const ROUTES = {
+  HOME: '/',
+  LOGIN: '/login',
+  AUTH_CALLBACK: '/auth/callback',
+  DASHBOARD: '/dashboard',
+  USER_MANAGEMENT: '/users',
+  PERSONAL_TOKENS: '/tokens',
+  USER_TOKENS_ADMIN: '/users/:userId/tokens',
+  USER_SESSIONS_ADMIN: '/users/:userId/sessions',
+  RETRIEVAL: '/retrieval',
+  EVALUATION_DASHBOARD: '/evaluation/dashboard',
+  EVALUATION_RUN: '/evaluation/run',
+  EVALUATION_FILES: '/evaluation/files',
+  EVALUATION_DATASETS: '/evaluation/datasets',
+  EVALUATION_JOBS: '/evaluation/jobs',
+} as const;

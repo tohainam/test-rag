@@ -1,0 +1,52 @@
+# mprocs configuration for ltv-assistant microservices
+# Run all services in parallel with: mprocs
+# Install mprocs: brew install mprocs (macOS) or cargo install mprocs
+
+procs:
+  api-gateway:
+    shell: 'cd api-gateway && npm run start:dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+  ltv-assistant-auth:
+    shell: 'cd ltv-assistant-auth && npm run start:dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+  ltv-assistant-cms:
+    shell: 'cd ltv-assistant-cms && npm run dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+  ltv-assistant-datasource:
+    shell: 'cd ltv-assistant-datasource && npm run start:dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+  ltv-assistant-indexing:
+    shell: 'cd ltv-assistant-indexing && npm run start:dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+  ltv-assistant-retrieval:
+    shell: 'cd ltv-assistant-retrieval && npm run start:dev'
+    cwd: <CONFIG_DIR>
+    autostart: true
+    autorestart: true
+    stop: SIGTERM
+
+# UI Configuration
+hide_keymap_window: false
+scrollback: 2000
+proc_list_width: 30
+mouse_scroll_speed: 3

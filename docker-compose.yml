@@ -1,0 +1,388 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ltv-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ltv_assistant
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ltv-network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: ltv-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root
+    ports:
+      - "8080:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - ltv-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ltv-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ltv-network
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: ltv-redis-insight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    volumes:
+      - redis_insight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ltv-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: ltv-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"      # MinIO API
+      - "9001:9001"      # MinIO Console UI
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ltv-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ltv-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"    # Ollama API
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ltv-network
+
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ltv-ollama-webui
+    restart: unless-stopped
+    ports:
+      - "3101:8080"      # Open WebUI (changed from 3100 to avoid conflict with Loki)
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=your-secret-key-change-this
+    volumes:
+      - ollama_webui_data:/app/backend/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - ltv-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ltv-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"      # HTTP API
+      - "6334:6334"      # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - ltv-network
+
+  bge-reranker:
+    build:
+      context: ./bge-reranker
+      dockerfile: Dockerfile
+    container_name: ltv-bge-reranker
+    restart: unless-stopped
+    ports:
+      - "6201:80"        # Reranker API
+    environment:
+      - MODEL_ID=BAAI/bge-reranker-v2-m3
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Allow time for model download on first run
+    networks:
+      - ltv-network
+
+  ltv-ragas-evaluation:
+    build:
+      context: ./ltv-ragas-evaluation
+      dockerfile: Dockerfile
+    container_name: ltv-ragas-evaluation
+    restart: unless-stopped
+    ports:
+      - "50059:50059"    # RAGAS Evaluation API
+    environment:
+      - FLASK_ENV=development
+      - PORT=50059
+      - DATABASE_URL=mysql+pymysql://root:root@mysql:3306/ltv_assistant
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_SECURE=false
+      - MINIO_BUCKET_EVALUATION=evaluation
+      - RETRIEVAL_SERVICE_URL=http://host.docker.internal:50053
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_CHAT_MODEL=qwen2.5:7b
+      - OLLAMA_EMBEDDING_MODEL=bge-m3:567m
+      # GOOGLE_API_KEY disabled - Gemini has event loop issues with RAGAS
+      # Use Ollama qwen2.5:7b (4.7GB) - sequential evaluation prevents OOM, qwen2.5 is faster and more capable than gemma3
+      - GOOGLE_API_KEY=AIzaSyDDeUluZ_cFoRwAIOBKeRKvJgCA1WZcK0w
+      - GOOGLE_CHAT_MODEL=gemini-2.5-flash-lite
+      - OPENAI_BASE_URL=http://ollama:11434/v1
+      - OPENAI_API_KEY=ollama
+      - LOG_LEVEL=INFO
+      - SERVICE_NAME=ltv-ragas-evaluation
+    volumes:
+      - ragas_evaluation_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:50059/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ltv-network
+
+  ltv-ragas-worker:
+    build:
+      context: ./ltv-ragas-evaluation
+      dockerfile: Dockerfile
+    container_name: ltv-ragas-worker
+    restart: unless-stopped
+    command: ./worker-entrypoint.sh
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql:3306/ltv_assistant
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_SECURE=false
+      - MINIO_BUCKET_EVALUATION=evaluation
+      - RETRIEVAL_SERVICE_URL=http://host.docker.internal:50053
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_CHAT_MODEL=qwen2.5:7b
+      - OLLAMA_EMBEDDING_MODEL=bge-m3:567m
+      # GOOGLE_API_KEY disabled - Gemini has event loop issues with RAGAS
+      # Use Ollama qwen2.5:7b (4.7GB) - sequential evaluation prevents OOM, qwen2.5 is faster and more capable than gemma3
+      - GOOGLE_API_KEY=AIzaSyDDeUluZ_cFoRwAIOBKeRKvJgCA1WZcK0w
+      - GOOGLE_CHAT_MODEL=gemini-2.5-flash-lite
+      - OPENAI_BASE_URL=http://ollama:11434/v1
+      - OPENAI_API_KEY=ollama
+      - LOG_LEVEL=INFO
+      - SERVICE_NAME=ltv-ragas-worker
+      - RQ_QUEUE_NAME=ragas-queue
+      - RQ_WORKER_TIMEOUT=7200
+      - RQ_MAX_RETRIES=3
+    volumes:
+      - ragas_evaluation_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - ltv-network
+
+  # ==========================================
+  # Observability Stack (Logging, Tracing, Metrics)
+  # ==========================================
+
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: ltv-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"      # Loki API
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ltv-network
+
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: ltv-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./monitoring/promtail-config.yaml:/etc/promtail/config.yaml
+      - ./logs:/logs:ro  # Mount logs directory for local services
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - ltv-network
+
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: ltv-tempo
+    restart: unless-stopped
+    ports:
+      - "4318:4318"      # OTLP HTTP (OpenTelemetry traces)
+      - "3200:3200"      # Tempo Query API
+    volumes:
+      - tempo_data:/var/tempo
+      - ./monitoring/tempo-config.yaml:/etc/tempo/tempo.yaml
+    command: -config.file=/etc/tempo/tempo.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ltv-network
+
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: ltv-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"      # Prometheus UI & API
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ltv-network
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: ltv-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"      # Grafana UI
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ltv-network
+      
+volumes:
+  mysql_data:
+  redis_data:
+  redis_insight_data:
+  minio_data:
+  ollama_data:
+  ollama_webui_data:
+  qdrant_data:
+  ragas_evaluation_logs:
+  loki_data:
+  tempo_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  ltv-network:
+    driver: bridge
+    name: ltv-network

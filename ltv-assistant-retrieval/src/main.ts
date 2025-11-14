@@ -1,0 +1,64 @@
+import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
+import { AppModule } from './app.module';
+import { initTracer, shutdownTracer } from './shared/tracing/tracer';
+
+const serviceName = process.env.SERVICE_NAME || 'ltv-assistant-retrieval';
+const tracer = initTracer(serviceName);
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
+  const logger = app.get(Logger);
+
+  // Enable CORS (same config as datasource service)
+  app.enableCors({
+    origin: true, // Allow all origins in development (configure for production)
+    credentials: true,
+  });
+
+  // Enable global ValidationPipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // TCP Microservice setup
+  const tcpPort = process.env.TCP_PORT || 4005;
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: '0.0.0.0',
+      port: Number(tcpPort),
+    },
+  });
+
+  await app.startAllMicroservices();
+  logger.log(`📡 TCP microservice is listening on port ${tcpPort}`);
+
+  // HTTP server setup
+  const port = process.env.PORT || 50053;
+  await app.listen(port);
+  logger.log(`🚀 HTTP server is running on http://localhost:${port}`);
+}
+
+void bootstrap();
+
+process.on('SIGTERM', () => {
+  void (async () => {
+    await shutdownTracer(tracer);
+    process.exit(0);
+  })();
+});
+
+process.on('SIGINT', () => {
+  void (async () => {
+    await shutdownTracer(tracer);
+    process.exit(0);
+  })();
+});

@@ -1,0 +1,39 @@
+{
+  "name": "ltv-assistant-mcp",
+  "version": "1.0.0",
+  "description": "LTV Assistant MCP Server - Proxy to API Gateway for retrieval system integration with VS Code Copilot Chat",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "ltv-assistant-mcp": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:bundle": "node scripts/bundle.js && node scripts/copy-bundle.js",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "start": "node dist/server.js",
+    "start:dev": "tsx watch src/server.ts",
+    "check": "npm run format && npm run lint && npm run build",
+    "lint": "eslint \"{src,scripts}/**/*.{ts,js}\" --fix"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.7",
+    "esbuild": "^0.24.2",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}

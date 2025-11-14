@@ -1,0 +1,185 @@
+{
+  "title": "Semantic Cache Monitoring Panels",
+  "description": "Add these panels to the ltv-assistant-retrieval-dashboard.json",
+  "panels": [
+    {
+      "title": "Semantic Cache HITs (Last Hour)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"Semantic cache HIT\" [1h]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Cache Stored Operations (Last Hour)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"Cache stored successfully\" [1h]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Cache Invalidations (Last Hour)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"Cache invalidated for\" [1h]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "orange", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Public-Only Safety Blocks (Last Hour)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"Skipping cache: contains non-public documents\" [1h]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Cache Operations Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum by (operation) (count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"cache\" | logfmt [5m]))",
+          "refId": "A",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Cache Cleanup Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "count_over_time({service=\"ltv-assistant-retrieval\"} |~ \"Scheduled cache cleanup completed\" [5m])",
+          "refId": "A",
+          "legendFormat": "Cleanup Events"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          },
+          "color": { "fixedColor": "green", "mode": "fixed" }
+        }
+      }
+    },
+    {
+      "title": "Recent Cache HITs (Logs)",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service=\"ltv-assistant-retrieval\"} |~ \"Semantic cache HIT\" | json | line_format \"[{{.timestamp}}] Cache HIT for query: {{.queryText}} (similarity: {{.similarity}}, age: {{.age}}ms, hits: {{.hits}})\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true
+      }
+    }
+  ],
+  "notes": [
+    "These panels monitor the semantic cache feature in the LTV Assistant Retrieval Service.",
+    "",
+    "Panels:",
+    "1. Semantic Cache HITs - Number of successful cache hits (green if > 50/hour)",
+    "2. Cache Stored Operations - Number of new cache entries added",
+    "3. Cache Invalidations - Number of cache invalidations from document updates/deletes",
+    "4. Public-Only Safety Blocks - Number of times cache was skipped due to non-public documents",
+    "5. Cache Operations Over Time - Time series of all cache operations",
+    "6. Cache Cleanup Events - When TTL cleanup jobs run",
+    "7. Recent Cache HITs - Log view of cache hits with details",
+    "",
+    "Log Queries:",
+    "- Cache HITs: {service=\"ltv-assistant-retrieval\"} |~ \"Semantic cache HIT\"",
+    "- Cache Stores: {service=\"ltv-assistant-retrieval\"} |~ \"Cache stored successfully\"",
+    "- Cache Invalidations: {service=\"ltv-assistant-retrieval\"} |~ \"Cache invalidated for\"",
+    "- Public-Only Blocks: {service=\"ltv-assistant-retrieval\"} |~ \"Skipping cache: contains non-public documents\"",
+    "- Cache Cleanup: {service=\"ltv-assistant-retrieval\"} |~ \"Scheduled cache cleanup completed\""
+  ]
+}

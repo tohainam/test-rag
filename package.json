@@ -1,0 +1,28 @@
+{
+  "name": "ltv-assistant",
+  "version": "1.0.0",
+  "description": "LTV Assistant - Microservices-based RAG System",
+  "private": true,
+  "scripts": {
+    "dev": "mprocs",
+    "install:all": "cd api-gateway && npm install && cd ../ltv-assistant-auth && npm install && cd ../ltv-assistant-cms && npm install && cd ../ltv-assistant-datasource && npm install && cd ../ltv-assistant-indexing && npm install && cd ../ltv-assistant-retrieval && npm install && cd ../ltv-assistant-mcp && npm install",
+    "build:all": "cd api-gateway && npm run build && cd ../ltv-assistant-auth && npm run build && cd ../ltv-assistant-datasource && npm run build && cd ../ltv-assistant-indexing && npm run build && cd ../ltv-assistant-retrieval && npm run build && cd ../ltv-assistant-mcp && npm run build && npm run build:bundle && cd ../ltv-assistant-cms && npm run build",
+    "check:all": "cd api-gateway && npm run check && cd ../ltv-assistant-auth && npm run check && cd ../ltv-assistant-datasource && npm run check && cd ../ltv-assistant-indexing && npm run check && cd ../ltv-assistant-retrieval && npm run check && cd ../ltv-assistant-mcp && npm run check && cd ../ltv-assistant-cms && npm run check",
+    "db:push": "cd ltv-assistant-auth && npm run db:push && cd ../ltv-assistant-datasource && npm run db:push && cd ../ltv-assistant-indexing && npm run db:push && cd ../ltv-assistant-retrieval && npm run db:push && cd ../ltv-assistant-cms && npm run db:push",
+    "docker:up": "docker-compose up -d mysql redis minio phpmyadmin redis-insight",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": [
+    "microservices",
+    "rag",
+    "nestjs",
+    "react",
+    "langchain"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "mprocs": "^0.7.3"
+  }
+}
