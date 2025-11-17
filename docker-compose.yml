@@ -229,7 +229,7 @@ services:
       - OLLAMA_EMBEDDING_MODEL=bge-m3:567m
       # GOOGLE_API_KEY disabled - Gemini has event loop issues with RAGAS
       # Use Ollama qwen2.5:7b (4.7GB) - sequential evaluation prevents OOM, qwen2.5 is faster and more capable than gemma3
-      - GOOGLE_API_KEY=AIzaSyDDeUluZ_cFoRwAIOBKeRKvJgCA1WZcK0w
+      - GOOGLE_API_KEY=
       - GOOGLE_CHAT_MODEL=gemini-2.5-flash-lite
       - OPENAI_BASE_URL=http://ollama:11434/v1
       - OPENAI_API_KEY=ollama
